@@ -1,7 +1,6 @@
 package com.example.Profenaa_touch.util;
 
 
-
 import java.util.Random;
 
 public class OtpUtil {

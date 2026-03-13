@@ -9,17 +9,24 @@ import java.nio.file.*;
 public class VideoStorageService {
 
     private static final String DIR = "uploads/videos/";
-    private static final long MAX_SIZE = 100 * 1024 * 1024;
+    private static final long MAX_SIZE = 500 * 1024 * 1024;
 
     public String save(MultipartFile file) throws Exception {
 
         if (file.getSize() > MAX_SIZE)
-            throw new RuntimeException("Video > 100MB");
+            throw new RuntimeException("Video > 500MB");
 
-        Files.createDirectories(Paths.get(DIR));
+        Path uploadPath = Paths.get(DIR);
+        Files.createDirectories(uploadPath);
 
         String name = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-        Files.copy(file.getInputStream(), Paths.get(DIR + name));
+        Path filePath = uploadPath.resolve(name);
+
+        Files.copy(
+                file.getInputStream(),
+                filePath,
+                StandardCopyOption.REPLACE_EXISTING   // 🔥 FIX
+        );
 
         return "/videos/" + name;
     }

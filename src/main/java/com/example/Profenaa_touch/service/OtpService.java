@@ -3,6 +3,7 @@ package com.example.Profenaa_touch.service;
 import com.example.Profenaa_touch.Repository.EmailOtpRepository;
 import com.example.Profenaa_touch.entity.EmailOtp;
 import com.example.Profenaa_touch.entity.OtpPurpose;
+import com.example.Profenaa_touch.entity.User;
 import com.example.Profenaa_touch.util.OtpUtil;
 import org.springframework.stereotype.Service;
 
@@ -28,9 +29,12 @@ public class OtpService {
     // 🔐 REGISTER OTP
     public void sendRegisterOtp(String name, String email) {
 
-        if (userService.exists(email)) {
-            throw new RuntimeException("User already registered");
+        User user = userService.findByEmail(email);
+
+        if (user != null && user.isVerified()) {
+            throw new RuntimeException("User already registered. Please login.");
         }
+
 
         saveAndSend(name, email, OtpPurpose.REGISTER);
     }
@@ -80,10 +84,20 @@ public class OtpService {
 
         // ✅ REGISTER USER ONLY AFTER REGISTER OTP
         if (purpose == OtpPurpose.REGISTER) {
-            userService.register(
-                    storedOtp.getName(),
-                    storedOtp.getEmail()
-            );
+
+            String emailNormalized = email.trim().toLowerCase();
+            User user = userService.findByEmail(emailNormalized);
+
+            if (user == null) {
+
+                userService.register(storedOtp.getName(), emailNormalized);
+            } else if (!user.isVerified()) {
+                // 🔹 Admin-created / unverified user → just verify
+                user.setVerified(true);
+                userService.save(user);
+            }
         }
+
     }
-}
+    }
+

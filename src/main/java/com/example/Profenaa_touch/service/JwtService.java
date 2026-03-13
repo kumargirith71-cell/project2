@@ -13,8 +13,7 @@ public class JwtService {
     private static final String SECRET =
             "superSecretJwtKeyForOtpAuth123456";
 
-    private static final long EXPIRY =
-            1000 * 60 * 60; // 1 hour
+    private static final long EXPIRY = 1000L * 60 * 60 * 24 * 7;
 
     private final Key key = Keys.hmacShaKeyFor(SECRET.getBytes());
 
