@@ -4,6 +4,11 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 
 @Entity
+@Table(
+        uniqueConstraints = @UniqueConstraint(
+                columnNames = {"module_id", "order_index"}
+        )
+)
 public class SubModule {
 
     @Id
@@ -12,15 +17,15 @@ public class SubModule {
 
     private String title;
     private Integer duration;
-    private int orderIndex;
+    private Integer orderIndex;
 
     private String videoUrl;
     private String materialUrl;
 
     @ManyToOne
+    @JoinColumn(name = "module_id", nullable = false)
     @JsonBackReference
     private Module module;
-
     /* ===== Getters & Setters ===== */
 
     public Long getId() { return id; }

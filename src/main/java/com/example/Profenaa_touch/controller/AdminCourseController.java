@@ -1,19 +1,18 @@
 package com.example.Profenaa_touch.controller;
 
+import com.example.Profenaa_touch.Repository.*;
 import com.example.Profenaa_touch.entity.Module;
-import com.example.Profenaa_touch.Repository.CourseRepository;
-import com.example.Profenaa_touch.Repository.DepartmentRepository;
-import com.example.Profenaa_touch.Repository.ModuleRepository;
-import com.example.Profenaa_touch.Repository.SubModuleRepository;
-import com.example.Profenaa_touch.Repository.EnrollmentRepository;
 import com.example.Profenaa_touch.entity.Course;
 import com.example.Profenaa_touch.entity.CourseStatus;
 import com.example.Profenaa_touch.entity.Department;
 import com.example.Profenaa_touch.service.CourseImageStorageService;
+import com.example.Profenaa_touch.service.SyllabusStorageService;
+
 import jakarta.transaction.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.util.List;
 
 @RestController
@@ -26,6 +25,11 @@ public class AdminCourseController {
     private final ModuleRepository moduleRepo;
     private final SubModuleRepository subModuleRepo;
     private final EnrollmentRepository enrollmentRepo;
+    private final PaymentRepository paymentRepo;
+    private final CartRepository cartRepo;
+
+    // ⭐ NEW
+    private final SyllabusStorageService syllabusService;
 
     public AdminCourseController(
             CourseRepository courseRepo,
@@ -33,7 +37,8 @@ public class AdminCourseController {
             CourseImageStorageService imageService,
             ModuleRepository moduleRepo,
             SubModuleRepository subModuleRepo,
-            EnrollmentRepository enrollmentRepo
+            EnrollmentRepository enrollmentRepo, PaymentRepository paymentRepo, CartRepository cartRepo,
+            SyllabusStorageService syllabusService
     ) {
         this.courseRepo = courseRepo;
         this.deptRepo = deptRepo;
@@ -41,6 +46,9 @@ public class AdminCourseController {
         this.moduleRepo = moduleRepo;
         this.subModuleRepo = subModuleRepo;
         this.enrollmentRepo = enrollmentRepo;
+        this.paymentRepo = paymentRepo;
+        this.cartRepo = cartRepo;
+        this.syllabusService = syllabusService;
     }
 
     /* =========================
@@ -51,7 +59,8 @@ public class AdminCourseController {
             @RequestParam Long departmentId,
             @RequestParam String name,
             @RequestParam String price,
-            @RequestParam(required = false) MultipartFile image
+            @RequestParam(required = false) MultipartFile image,
+            @RequestParam(required = false) MultipartFile syllabus
     ) throws Exception {
 
         Department dept = deptRepo.findById(departmentId)
@@ -66,6 +75,55 @@ public class AdminCourseController {
         if (image != null && !image.isEmpty()) {
             course.setPreviewImageUrl(imageService.save(image));
         }
+        if (syllabus != null && !syllabus.isEmpty()) {
+            course.setSyllabusUrl(syllabusService.save(syllabus));
+        }
+
+        return courseRepo.save(course);
+    }
+
+    /* =========================
+       UPLOAD SYLLABUS
+    ========================== */
+    @PostMapping("/{courseId}/syllabus")
+    public Course uploadSyllabus(
+            @PathVariable Long courseId,
+            @RequestParam MultipartFile syllabus
+    ) throws Exception {
+
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+
+        String url = syllabusService.save(syllabus);
+
+        course.setSyllabusUrl(url);
+
+        return courseRepo.save(course);
+    }
+
+    /* =========================
+       UPDATE SYLLABUS
+    ========================== */
+    @PutMapping("/{courseId}/syllabus")
+    public Course updateSyllabus(
+            @PathVariable Long courseId,
+            @RequestParam MultipartFile syllabus
+    ) throws Exception {
+
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+
+        // delete old syllabus if exists
+        if (course.getSyllabusUrl() != null) {
+            File oldFile = new File("uploads" + course.getSyllabusUrl());
+            if (oldFile.exists()) {
+                oldFile.delete();
+            }
+        }
+
+        String url = syllabusService.save(syllabus);
+
+        course.setSyllabusUrl(url);
 
         return courseRepo.save(course);
     }
@@ -118,10 +176,12 @@ public class AdminCourseController {
         Course course = courseRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Course not found"));
 
-        // 1️⃣ Delete enrollments first
+        cartRepo.deleteAll(cartRepo.findByCourse(course));
+
+        paymentRepo.deleteAll(paymentRepo.findByCourse(course));
+
         enrollmentRepo.deleteAll(enrollmentRepo.findByCourse(course));
 
-        // 2️⃣ Delete modules and submodules
         List<Module> modules = moduleRepo.findByCourse(course);
 
         for (Module module : modules) {
@@ -133,7 +193,6 @@ public class AdminCourseController {
             moduleRepo.delete(module);
         }
 
-        // 3️⃣ Finally delete course
         courseRepo.delete(course);
     }
 

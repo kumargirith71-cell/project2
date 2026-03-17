@@ -22,5 +22,8 @@ public class VideoConfig implements WebMvcConfigurer {
         // ✅ Materials (download)
         r.addResourceHandler("/materials/**")
                 .addResourceLocations("file:uploads/materials/");
+
+        r.addResourceHandler("/syllabus/**")
+                .addResourceLocations("file:uploads/syllabus/");
     }
 }

@@ -22,6 +22,7 @@ public class AdminSubModuleController {
             @PathVariable Long moduleId,
             @RequestParam String title,
             @RequestParam Integer duration,
+            @RequestParam Integer orderIndex,   // ⭐ ADD THIS
             @RequestParam MultipartFile video,
             @RequestParam(required = false) MultipartFile material
     ) throws Exception {
@@ -30,6 +31,7 @@ public class AdminSubModuleController {
                 moduleId,
                 title,
                 duration,
+                orderIndex,   // ⭐ PASS THIS
                 video,
                 material
         );

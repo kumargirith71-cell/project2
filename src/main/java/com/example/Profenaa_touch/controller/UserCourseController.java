@@ -6,6 +6,12 @@ import com.example.Profenaa_touch.entity.Module;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.*;
+
+import java.io.File;
+import java.io.FileInputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -17,20 +23,20 @@ public class UserCourseController {
     private final CourseRepository courseRepo;
     private final UserRepository userRepo;
     private final ModuleRepository moduleRepo;
-    private final PaymentRepository paymentRepo;   // ✅ NEW
+    private final PaymentRepository paymentRepo;
 
     public UserCourseController(
             EnrollmentRepository enrollRepo,
             CourseRepository courseRepo,
             UserRepository userRepo,
             ModuleRepository moduleRepo,
-            PaymentRepository paymentRepo   // ✅ NEW
+            PaymentRepository paymentRepo
     ) {
         this.enrollRepo = enrollRepo;
         this.courseRepo = courseRepo;
         this.userRepo = userRepo;
         this.moduleRepo = moduleRepo;
-        this.paymentRepo = paymentRepo;    // ✅ NEW
+        this.paymentRepo = paymentRepo;
     }
 
     // ================= EXISTING LOGIC (UNCHANGED) =================
@@ -68,7 +74,6 @@ public class UserCourseController {
 
                     Course course = enrollment.getCourse();
 
-                    // 🔥 Force load modules safely
                     if (course.getModules() != null) {
                         course.getModules().forEach(module -> {
                             if (module.getSubModules() != null) {
@@ -84,7 +89,6 @@ public class UserCourseController {
 
     // ================= NEW ADDITIONS (NO EXISTING LOGIC MODIFIED) =================
 
-    // ✅ Check if user has access (used for preview lock)
     @GetMapping("/has-access/{courseId}")
     public boolean hasAccess(
             @PathVariable Long courseId,
@@ -100,7 +104,6 @@ public class UserCourseController {
         return enrollRepo.existsByUserAndCourse(user, course);
     }
 
-    // ✅ Payment History
     @GetMapping("/payment-history")
     public List<Payment> paymentHistory(Authentication auth) {
 
@@ -111,7 +114,6 @@ public class UserCourseController {
                 .findByUserAndStatus(user, "SUCCESS");
     }
 
-    // ✅ Check Course Completion
     @GetMapping("/course/{courseId}/completion")
     public boolean isCompleted(
             @PathVariable Long courseId,
@@ -129,7 +131,6 @@ public class UserCourseController {
                 .orElse(false);
     }
 
-    // ✅ Mark Course Completed
     @PostMapping("/course/{courseId}/complete")
     public void markCompleted(
             @PathVariable Long courseId,
@@ -152,7 +153,6 @@ public class UserCourseController {
         enrollRepo.save(enrollment);
     }
 
-    // ✅ Check Certificate Eligibility
     @GetMapping("/course/{courseId}/certificate-eligible")
     public boolean certificateEligible(
             @PathVariable Long courseId,
@@ -169,4 +169,75 @@ public class UserCourseController {
                 .map(Enrollment::isCompleted)
                 .orElse(false);
     }
+
+
+    // ================= SYLLABUS FEATURE =================
+
+    /* VIEW SYLLABUS */
+    @GetMapping("/course/{courseId}/syllabus/view")
+    public ResponseEntity<Resource> viewSyllabus(
+            @PathVariable Long courseId,
+            Authentication auth
+    ) throws Exception {
+
+        User user = userRepo.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+
+        if (!enrollRepo.existsByUserAndCourse(user, course)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        File file = new File("uploads" + course.getSyllabusUrl());
+
+        if (!file.exists()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource resource =
+                new InputStreamResource(new FileInputStream(file));
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=syllabus.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(resource);
+    }
+
+
+    /* DOWNLOAD SYLLABUS */
+    @GetMapping("/course/{courseId}/syllabus/download")
+    public ResponseEntity<Resource> downloadSyllabus(
+            @PathVariable Long courseId,
+            Authentication auth
+    ) throws Exception {
+
+        User user = userRepo.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Course course = courseRepo.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+
+        if (!enrollRepo.existsByUserAndCourse(user, course)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        File file = new File("uploads" + course.getSyllabusUrl());
+
+        if (!file.exists()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource resource =
+                new InputStreamResource(new FileInputStream(file));
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=syllabus.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(resource);
+    }
+
 }

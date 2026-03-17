@@ -1,6 +1,7 @@
 package com.example.Profenaa_touch.Repository;
 
 import com.example.Profenaa_touch.entity.Cart;
+import com.example.Profenaa_touch.entity.Course;
 import com.example.Profenaa_touch.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -13,4 +14,6 @@ public interface CartRepository extends JpaRepository<Cart, Long> {
     boolean existsByUser_IdAndCourse_Id(Long userId, Long courseId);
 
     void deleteByUser_IdAndCourse_Id(Long userId, Long courseId);
+
+    List<Cart> findByCourse(Course course);
 }

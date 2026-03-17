@@ -16,6 +16,7 @@ public class Course {
     private Double price;
 
     private String previewImageUrl;
+    private String syllabusUrl;
 
     @Enumerated(EnumType.STRING)
     private CourseStatus status;
@@ -70,5 +71,12 @@ public class Course {
 
     public void setModules(List<Module> modules) {
         this.modules = modules;
+    }
+    public String getSyllabusUrl() {
+        return syllabusUrl;
+    }
+
+    public void setSyllabusUrl(String syllabusUrl) {
+        this.syllabusUrl = syllabusUrl;
     }
 }

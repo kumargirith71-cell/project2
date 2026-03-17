@@ -28,19 +28,27 @@ public class SubModuleService {
     }
 
     public SubModule create(Long moduleId, String title, Integer duration,
+                            Integer orderIndex,
                             MultipartFile video, MultipartFile material) throws Exception {
 
         Module module = moduleRepo.findById(moduleId).orElseThrow();
 
+        // ✅ CHECK FIRST (IMPORTANT)
+        boolean exists = subRepo.existsByModuleIdAndOrderIndex(moduleId, orderIndex);
 
+        if (exists) {
+            throw new RuntimeException("Order index already exists for this module");
+        }
 
+        // ✅ THEN CREATE OBJECT
         SubModule sm = new SubModule();
         sm.setTitle(title);
         sm.setDuration(duration);
+        sm.setOrderIndex(orderIndex);
         sm.setModule(module);
         sm.setVideoUrl(videoService.save(video));
 
-        if (material != null) {
+        if (material != null && !material.isEmpty()) {
             sm.setMaterialUrl(materialService.save(material));
         }
 

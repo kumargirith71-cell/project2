@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.RandomAccessFile;
+import java.util.List;
 
 @RestController
 @RequestMapping("/video")
@@ -41,41 +41,53 @@ public class VideoController {
     @GetMapping("/stream/{subModuleId}")
     public ResponseEntity<Resource> streamVideo(
             @PathVariable Long subModuleId,
-            @RequestHeader("Authorization") String authHeader,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestHeader(value = "Range", required = false) String rangeHeader
     ) throws Exception {
-
-        // 🔐 Extract token
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        String token = authHeader.substring(7);
-
-        if (!jwtService.isTokenValid(token)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        String email = jwtService.extractEmail(token);
-
-        User user = userRepo.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
 
         SubModule subModule = subModuleRepo.findById(subModuleId)
                 .orElseThrow(() -> new RuntimeException("SubModule not found"));
 
         Course course = subModule.getModule().getCourse();
 
-        // ✅ ADMIN always allowed
-        if (user.getRole() != Role.ADMIN) {
+        // ⭐ Find first video
+        boolean isFirstVideo = subModule.getOrderIndex() == 1;
 
-            boolean enrolled = enrollRepo.existsByUser_IdAndCourse_Id(
-                    user.getId(),
-                    course.getId()
-            );
+        User user = null;
 
-            if (!enrolled) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        /* ================= AUTH CHECK ================= */
+
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+
+            String token = authHeader.substring(7);
+
+            if (jwtService.isTokenValid(token)) {
+
+                String email = jwtService.extractEmail(token);
+
+                user = userRepo.findByEmail(email)
+                        .orElseThrow(() -> new RuntimeException("User not found"));
+            }
+        }
+
+        /* ================= ACCESS CONTROL ================= */
+
+        if (!isFirstVideo) {
+
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            if (user.getRole() != Role.ADMIN) {
+
+                boolean enrolled = enrollRepo.existsByUser_IdAndCourse_Id(
+                        user.getId(),
+                        course.getId()
+                );
+
+                if (!enrolled) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
             }
         }
 
@@ -87,9 +99,7 @@ public class VideoController {
 
         long fileLength = file.length();
 
-        /* =====================================================
-           🔥 INITIAL REQUEST (NO RANGE)
-        ===================================================== */
+        /* ================= NO RANGE (FIRST LOAD) ================= */
 
         if (rangeHeader == null) {
 
@@ -102,9 +112,7 @@ public class VideoController {
                     .body(resource);
         }
 
-        /* =====================================================
-           🔥 RANGE STREAMING
-        ===================================================== */
+        /* ================= RANGE STREAMING (FAST FIX) ================= */
 
         String[] ranges = rangeHeader.replace("bytes=", "").split("-");
 
@@ -116,15 +124,13 @@ public class VideoController {
 
         long contentLength = end - start + 1;
 
-        RandomAccessFile raf = new RandomAccessFile(file, "r");
-        raf.seek(start);
+        FileInputStream fis = new FileInputStream(file);
+        fis.skip(start);
 
-        byte[] data = new byte[(int) contentLength];
-        raf.readFully(data);
-        raf.close();
-
-        InputStreamResource resource =
-                new InputStreamResource(new java.io.ByteArrayInputStream(data));
+        InputStreamResource resource = new InputStreamResource(fis);
+        System.out.println("SubModule ID: " + subModule.getId());
+        System.out.println("OrderIndex: " + subModule.getOrderIndex());
+        System.out.println("Is First Video: " + (subModule.getOrderIndex() == 1));
 
         return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                 .contentType(MediaType.valueOf("video/mp4"))
@@ -133,5 +139,7 @@ public class VideoController {
                         "bytes " + start + "-" + end + "/" + fileLength)
                 .contentLength(contentLength)
                 .body(resource);
+
+
     }
 }
