@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.util.List;
 
 @RestController
 @RequestMapping("/video")
@@ -50,13 +49,12 @@ public class VideoController {
 
         Course course = subModule.getModule().getCourse();
 
-        // ⭐ Find first video
+        // ✅ First video check
         boolean isFirstVideo = subModule.getOrderIndex() == 1;
 
         User user = null;
 
         /* ================= AUTH CHECK ================= */
-
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
 
             String token = authHeader.substring(7);
@@ -71,7 +69,6 @@ public class VideoController {
         }
 
         /* ================= ACCESS CONTROL ================= */
-
         if (!isFirstVideo) {
 
             if (user == null) {
@@ -100,19 +97,18 @@ public class VideoController {
         long fileLength = file.length();
 
         /* ================= NO RANGE (FIRST LOAD) ================= */
-
         if (rangeHeader == null) {
 
-            InputStreamResource resource =
-                    new InputStreamResource(new FileInputStream(file));
-
-            return ResponseEntity.ok()
+            return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                     .contentType(MediaType.valueOf("video/mp4"))
+                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                    .header(HttpHeaders.CONTENT_RANGE,
+                            "bytes 0-" + (fileLength - 1) + "/" + fileLength)
                     .contentLength(fileLength)
-                    .body(resource);
+                    .body(new InputStreamResource(new FileInputStream(file)));
         }
 
-        /* ================= RANGE STREAMING (FAST FIX) ================= */
+        /* ================= RANGE STREAMING ================= */
 
         String[] ranges = rangeHeader.replace("bytes=", "").split("-");
 
@@ -127,19 +123,12 @@ public class VideoController {
         FileInputStream fis = new FileInputStream(file);
         fis.skip(start);
 
-        InputStreamResource resource = new InputStreamResource(fis);
-        System.out.println("SubModule ID: " + subModule.getId());
-        System.out.println("OrderIndex: " + subModule.getOrderIndex());
-        System.out.println("Is First Video: " + (subModule.getOrderIndex() == 1));
-
         return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                 .contentType(MediaType.valueOf("video/mp4"))
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .header(HttpHeaders.CONTENT_RANGE,
                         "bytes " + start + "-" + end + "/" + fileLength)
                 .contentLength(contentLength)
-                .body(resource);
-
-
+                .body(new InputStreamResource(fis));
     }
 }

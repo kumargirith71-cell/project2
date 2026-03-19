@@ -11,15 +11,20 @@ import java.util.List;
 public interface CourseRepository extends JpaRepository<Course, Long> {
 
     @Query("""
-        SELECT new com.example.Profenaa_touch.entity.CourseCardDTO(
-            c.id,
-            c.name,
-            c.price,
-            c.previewImageUrl
-        )
-        FROM Course c
-        WHERE c.status = :status
-    """)
+    SELECT new com.example.Profenaa_touch.entity.CourseCardDTO(
+        c.id,
+        c.name,
+        c.instructor,
+        c.rating,
+        c.totalUsers,
+        c.price,
+        c.oldPrice,
+        c.previewImageUrl,
+        c.syllabusUrl
+    )
+    FROM Course c
+    WHERE c.status = :status
+""")
     List<CourseCardDTO> findCourseCardsByStatus(CourseStatus status);
 
 

@@ -52,6 +52,10 @@ public class SecurityConfig {
                         .requestMatchers("/materials/**").permitAll()
                         .requestMatchers("/course-images/**").permitAll()
 
+                        // ⭐ IMPORTANT FIX
+                        .requestMatchers("/video/stream/**").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
+
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/user/**").hasRole("USER")
 

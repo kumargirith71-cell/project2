@@ -190,7 +190,7 @@ public class UserCourseController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        File file = new File("uploads" + course.getSyllabusUrl());
+        File file = new File("/opt/amcurious/uploads" + course.getSyllabusUrl());
 
         if (!file.exists()) {
             return ResponseEntity.notFound().build();

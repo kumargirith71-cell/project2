@@ -27,8 +27,6 @@ public class AdminCourseController {
     private final EnrollmentRepository enrollmentRepo;
     private final PaymentRepository paymentRepo;
     private final CartRepository cartRepo;
-
-    // ⭐ NEW
     private final SyllabusStorageService syllabusService;
 
     public AdminCourseController(
@@ -37,7 +35,9 @@ public class AdminCourseController {
             CourseImageStorageService imageService,
             ModuleRepository moduleRepo,
             SubModuleRepository subModuleRepo,
-            EnrollmentRepository enrollmentRepo, PaymentRepository paymentRepo, CartRepository cartRepo,
+            EnrollmentRepository enrollmentRepo,
+            PaymentRepository paymentRepo,
+            CartRepository cartRepo,
             SyllabusStorageService syllabusService
     ) {
         this.courseRepo = courseRepo;
@@ -52,13 +52,32 @@ public class AdminCourseController {
     }
 
     /* =========================
+       VALIDATION METHOD
+    ========================== */
+    private void validateSyllabus(MultipartFile syllabus) {
+
+        if (syllabus == null || syllabus.isEmpty()) {
+            throw new RuntimeException("Syllabus file required");
+        }
+
+        if (!syllabus.getContentType().equals("application/pdf")) {
+            throw new RuntimeException("Only PDF allowed");
+        }
+    }
+
+    /* =========================
        CREATE COURSE
     ========================== */
     @PostMapping
     public Course create(
             @RequestParam Long departmentId,
             @RequestParam String name,
-            @RequestParam String price,
+            @RequestParam String instructor,
+            @RequestParam Double rating,
+            @RequestParam Integer totalUsers,
+            @RequestParam Double price,
+            @RequestParam(required = false) Double oldPrice,
+            @RequestParam(required = false) String description,
             @RequestParam(required = false) MultipartFile image,
             @RequestParam(required = false) MultipartFile syllabus
     ) throws Exception {
@@ -67,21 +86,32 @@ public class AdminCourseController {
                 .orElseThrow(() -> new RuntimeException("Department not found"));
 
         Course course = new Course();
+
+        // ✅ BASIC
         course.setName(name);
-        course.setPrice(Double.parseDouble(price));
+        course.setInstructor(instructor);
+        course.setRating(rating);
+        course.setTotalUsers(totalUsers);
+        course.setPrice(price);
+        course.setOldPrice(oldPrice);
+        course.setDescription(description);
+
         course.setStatus(CourseStatus.DRAFT);
         course.setDepartment(dept);
 
+        // ✅ IMAGE
         if (image != null && !image.isEmpty()) {
             course.setPreviewImageUrl(imageService.save(image));
         }
+
+        // ✅ SYLLABUS
         if (syllabus != null && !syllabus.isEmpty()) {
+            validateSyllabus(syllabus);
             course.setSyllabusUrl(syllabusService.save(syllabus));
         }
 
         return courseRepo.save(course);
     }
-
     /* =========================
        UPLOAD SYLLABUS
     ========================== */
@@ -94,8 +124,10 @@ public class AdminCourseController {
         Course course = courseRepo.findById(courseId)
                 .orElseThrow(() -> new RuntimeException("Course not found"));
 
-        String url = syllabusService.save(syllabus);
+        // ✅ FIXED
+        validateSyllabus(syllabus);
 
+        String url = syllabusService.save(syllabus);
         course.setSyllabusUrl(url);
 
         return courseRepo.save(course);
@@ -113,16 +145,18 @@ public class AdminCourseController {
         Course course = courseRepo.findById(courseId)
                 .orElseThrow(() -> new RuntimeException("Course not found"));
 
-        // delete old syllabus if exists
+        // ✅ FIXED: validate first
+        validateSyllabus(syllabus);
+
+        // delete old syllabus
         if (course.getSyllabusUrl() != null) {
-            File oldFile = new File("uploads" + course.getSyllabusUrl());
+            File oldFile = new File("/opt/amcurious/uploads" + course.getSyllabusUrl());
             if (oldFile.exists()) {
                 oldFile.delete();
             }
         }
 
         String url = syllabusService.save(syllabus);
-
         course.setSyllabusUrl(url);
 
         return courseRepo.save(course);
@@ -138,7 +172,6 @@ public class AdminCourseController {
                 .orElseThrow(() -> new RuntimeException("Course not found"));
 
         course.setStatus(CourseStatus.PUBLISHED);
-
         return courseRepo.saveAndFlush(course);
     }
 
@@ -167,7 +200,7 @@ public class AdminCourseController {
     }
 
     /* =========================
-       DELETE COURSE (FIXED)
+       DELETE COURSE
     ========================== */
     @DeleteMapping("/{id}")
     @Transactional
@@ -177,19 +210,13 @@ public class AdminCourseController {
                 .orElseThrow(() -> new RuntimeException("Course not found"));
 
         cartRepo.deleteAll(cartRepo.findByCourse(course));
-
         paymentRepo.deleteAll(paymentRepo.findByCourse(course));
-
         enrollmentRepo.deleteAll(enrollmentRepo.findByCourse(course));
 
         List<Module> modules = moduleRepo.findByCourse(course);
 
         for (Module module : modules) {
-
-            subModuleRepo.deleteAll(
-                    subModuleRepo.findByModule(module)
-            );
-
+            subModuleRepo.deleteAll(subModuleRepo.findByModule(module));
             moduleRepo.delete(module);
         }
 
@@ -197,7 +224,7 @@ public class AdminCourseController {
     }
 
     /* =========================
-       GET ALL COURSES (ADMIN)
+       GET ALL COURSES
     ========================== */
     @GetMapping("/all")
     public List<Course> getAllCourses() {
