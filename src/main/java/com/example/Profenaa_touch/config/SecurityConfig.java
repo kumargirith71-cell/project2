@@ -57,7 +57,8 @@ public class SecurityConfig {
                         .requestMatchers("/uploads/**").permitAll()
 
                         .requestMatchers("/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/user/**").hasRole("USER")
+
+                        .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN")
 
                         .requestMatchers("/cart/**").authenticated()
                         .requestMatchers("/payment/**").authenticated()

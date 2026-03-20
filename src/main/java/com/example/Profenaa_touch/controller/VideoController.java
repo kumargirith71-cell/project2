@@ -50,7 +50,7 @@ public class VideoController {
         Course course = subModule.getModule().getCourse();
 
         // ✅ First video check
-        boolean isFirstVideo = subModule.getOrderIndex() == 1;
+        boolean isFirstVideo = subModule.getOrderIndex() == 0;
 
         User user = null;
 

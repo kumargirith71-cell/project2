@@ -39,7 +39,7 @@ public class UserCourseController {
         this.paymentRepo = paymentRepo;
     }
 
-    // ================= EXISTING LOGIC (UNCHANGED) =================
+    /* ================= EXISTING LOGIC ================= */
 
     @GetMapping("/course/{courseId}/modules")
     public List<Module> getModules(
@@ -53,7 +53,7 @@ public class UserCourseController {
         Course course = courseRepo.findById(courseId)
                 .orElseThrow(() -> new RuntimeException("Course not found"));
 
-        if (!enrollRepo.existsByUserAndCourse(user, course)) {
+        if (!enrollRepo.existsByUser_IdAndCourse_Id(user.getId(), course.getId())) {
             throw new RuntimeException("Buy course first");
         }
 
@@ -87,8 +87,6 @@ public class UserCourseController {
                 .toList();
     }
 
-    // ================= NEW ADDITIONS (NO EXISTING LOGIC MODIFIED) =================
-
     @GetMapping("/has-access/{courseId}")
     public boolean hasAccess(
             @PathVariable Long courseId,
@@ -101,7 +99,10 @@ public class UserCourseController {
         Course course = courseRepo.findById(courseId)
                 .orElseThrow(() -> new RuntimeException("Course not found"));
 
-        return enrollRepo.existsByUserAndCourse(user, course);
+        return enrollRepo.existsByUser_IdAndCourse_Id(
+                user.getId(),
+                course.getId()
+        );
     }
 
     @GetMapping("/payment-history")
@@ -110,8 +111,7 @@ public class UserCourseController {
         User user = userRepo.findByEmail(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return paymentRepo
-                .findByUserAndStatus(user, "SUCCESS");
+        return paymentRepo.findByUserAndStatus(user, "SUCCESS");
     }
 
     @GetMapping("/course/{courseId}/completion")
@@ -170,10 +170,8 @@ public class UserCourseController {
                 .orElse(false);
     }
 
+    /* ================= SYLLABUS FEATURE ================= */
 
-    // ================= SYLLABUS FEATURE =================
-
-    /* VIEW SYLLABUS */
     @GetMapping("/course/{courseId}/syllabus/view")
     public ResponseEntity<Resource> viewSyllabus(
             @PathVariable Long courseId,
@@ -186,28 +184,24 @@ public class UserCourseController {
         Course course = courseRepo.findById(courseId)
                 .orElseThrow(() -> new RuntimeException("Course not found"));
 
-        if (!enrollRepo.existsByUserAndCourse(user, course)) {
+        // ✅ ADMIN ACCESS
+        if (user.getRole() == Role.ADMIN) {
+            return loadPdf(course.getSyllabusUrl());
+        }
+
+        // ✅ USER PURCHASE CHECK
+        boolean enrolled = enrollRepo.existsByUser_IdAndCourse_Id(
+                user.getId(),
+                course.getId()
+        );
+
+        if (!enrolled) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        File file = new File("/opt/amcurious/uploads" + course.getSyllabusUrl());
-
-        if (!file.exists()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        Resource resource =
-                new InputStreamResource(new FileInputStream(file));
-
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=syllabus.pdf")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(resource);
+        return loadPdf(course.getSyllabusUrl());
     }
 
-
-    /* DOWNLOAD SYLLABUS */
     @GetMapping("/course/{courseId}/syllabus/download")
     public ResponseEntity<Resource> downloadSyllabus(
             @PathVariable Long courseId,
@@ -220,24 +214,53 @@ public class UserCourseController {
         Course course = courseRepo.findById(courseId)
                 .orElseThrow(() -> new RuntimeException("Course not found"));
 
-        if (!enrollRepo.existsByUserAndCourse(user, course)) {
+        // ✅ ADMIN ACCESS
+        if (user.getRole() == Role.ADMIN) {
+            return downloadPdf(course.getSyllabusUrl());
+        }
+
+        // ✅ USER PURCHASE CHECK
+        boolean enrolled = enrollRepo.existsByUser_IdAndCourse_Id(
+                user.getId(),
+                course.getId()
+        );
+
+        if (!enrolled) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        File file = new File("uploads" + course.getSyllabusUrl());
+        return downloadPdf(course.getSyllabusUrl());
+    }
+
+    /* ================= HELPER METHODS ================= */
+
+    private ResponseEntity<Resource> loadPdf(String path) throws Exception {
+
+        File file = new File("/opt/amcurious/uploads" + path);
 
         if (!file.exists()) {
             return ResponseEntity.notFound().build();
         }
 
-        Resource resource =
-                new InputStreamResource(new FileInputStream(file));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=syllabus.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(new InputStreamResource(new FileInputStream(file)));
+    }
+
+    private ResponseEntity<Resource> downloadPdf(String path) throws Exception {
+
+        File file = new File("/opt/amcurious/uploads" + path);
+
+        if (!file.exists()) {
+            return ResponseEntity.notFound().build();
+        }
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=syllabus.pdf")
                 .contentType(MediaType.APPLICATION_PDF)
-                .body(resource);
+                .body(new InputStreamResource(new FileInputStream(file)));
     }
-
 }
